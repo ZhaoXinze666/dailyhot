@@ -13,6 +13,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 授予 GITHUB_TOKEN 代码推送权限，解决 403 核心问题
 
     steps:
       - name: 检出源码
@@ -25,9 +27,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-${{ matrix.node-version }}-nodeModules-${{ hashFiles('package-lock.json') }}-${{ hashFiles('package.json') }}
+          # 修复：移除不存在的 matrix.node-version 变量，避免缓存失效
+          key: ${{ runner.os }}-node-20-nodeModules-${{ hashFiles('package-lock.json') }}-${{ hashFiles('package.json') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.node-version }}-nodeModules-
+            ${{ runner.os }}-node-20-nodeModules-
 
       - name: 设置 Node.js 环境
         uses: actions/setup-node@main
@@ -38,15 +41,16 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm i --save
 
-      - name: 构建 Astro 站点
+      - name: 构建站点
         run: npm run build
 
       - name: 部署到 static 分支
         run: |
           cd ./dist
           git init
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
+          git config user.name 'GitHub Action'
+          git config user.email 'action@github.com'
           git add .
           git commit -m "🤓$(date +"%Z %Y-%m-%d %A %H:%M:%S")"
-          git push --force --quiet "https://willow-god:${{ secrets.GITHUB_TOKEN }}@github.com/willow-god/daily-hot.git" master:refs/heads/page
+          # 核心修改：推送至当前仓库的 static 分支，不再指向原作者仓库
+          git push --force --quiet "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" master:refs/heads/static
